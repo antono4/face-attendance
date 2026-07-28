@@ -32,40 +32,31 @@ absensi-face/
     └── face_recognition_model-weights_blob
 ```
 
-### 2. Download Model Face-API.js
+### 2. Model Face-API.js (Sudah termasuk)
 
-Model diperlukan untuk face detection dan recognition. Download dari GitHub:
+Model untuk face detection dan recognition sudah termasuk dalam folder `/models`:
 
-```bash
-# Buat folder models
-mkdir models
-
-# Download menggunakan curl atau wget
-cd models
-
-# SSD MobileNet V1 (Face Detection)
-wget https://raw.githubusercontent.com/justadudewhohacks/face-api.js/master/weights/ssd_mobilenetv1_model-weights_manifest.json
-wget https://raw.githubusercontent.com/justadudewhohacks/face-api.js/master/weights/ssd_mobilenetv1_model-weights_blob
-
-# Tiny Face Detector
-wget https://raw.githubusercontent.com/justadudewhohacks/face-api.js/master/weights/tiny_face_detector_model-weights_manifest.json
-wget https://raw.githubusercontent.com/justadudewhohacks/face-api.js/master/weights/tiny_face_detector_model-weights_blob
-
-# Face Landmark 68
-wget https://raw.githubusercontent.com/justadudewhohacks/face-api.js/master/weights/face_landmark_68_model-weights_manifest.json
-wget https://raw.githubusercontent.com/justadudewhohacks/face-api.js/master/weights/face_landmark_68_model-weights_blob
-
-# Face Recognition
-wget https://raw.githubusercontent.com/justadudewhohacks/face-api.js/master/weights/face_recognition_model-weights_manifest.json
-wget https://raw.githubusercontent.com/justadudewhohacks/face-api.js/master/weights/face_recognition_model-weights_blob
+```
+models/
+├── ssd_mobilenetv1_model-shard1           (~4 MB)
+├── ssd_mobilenetv1_model-shard2           (~1.4 MB)
+├── ssd_mobilenetv1_model-weights_manifest.json
+├── tiny_face_detector_model-shard1        (~193 KB)
+├── tiny_face_detector_model-weights_manifest.json
+├── face_landmark_68_model-shard1          (~357 KB)
+├── face_landmark_68_model-weights_manifest.json
+├── face_recognition_model-shard1           (~4 MB)
+├── face_recognition_model-shard2           (~2.2 MB)
+└── face_recognition_model-weights_manifest.json
 ```
 
-Atau download semua model sekaligus:
-
+Jika perlu download ulang:
 ```bash
-wget -r -np -nH --cut-dirs=2 -R "index.html*" \
-    https://raw.githubusercontent.com/justadudewhohacks/face-api.js/master/weights/ \
-    -P models/
+cd models
+curl -sLO "https://raw.githubusercontent.com/justadudewhohacks/face-api.js/master/weights/ssd_mobilenetv1_model-shard1"
+curl -sLO "https://raw.githubusercontent.com/justadudewhohacks/face-api.js/master/weights/ssd_mobilenetv1_model-shard2"
+curl -sLO "https://raw.githubusercontent.com/justadudewhohacks/face-api.js/master/weights/ssd_mobilenetv1_model-weights_manifest.json"
+# ... download file lainnya dari weights folder
 ```
 
 ### 3. Setup Database MySQL
