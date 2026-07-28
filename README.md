@@ -24,12 +24,14 @@ absensi-face/
 └── models/             # Folder untuk model face-api.js
     ├── ssd_mobilenetv1_model-weights_manifest.json
     ├── ssd_mobilenetv1_model-weights_blob
+    ├── ssd_mobilenetv1_model-weights_blob2
     ├── tiny_face_detector_model-weights_manifest.json
     ├── tiny_face_detector_model-weights_blob
     ├── face_landmark_68_model-weights_manifest.json
     ├── face_landmark_68_model-weights_blob
     ├── face_recognition_model-weights_manifest.json
-    └── face_recognition_model-weights_blob
+    ├── face_recognition_model-weights_blob
+    └── face_recognition_model-weights_blob2
 ```
 
 ### 2. Model Face-API.js (Sudah termasuk)
@@ -38,16 +40,16 @@ Model untuk face detection dan recognition sudah termasuk dalam folder `/models`
 
 ```
 models/
-├── ssd_mobilenetv1_model-shard1           (~4 MB)
-├── ssd_mobilenetv1_model-shard2           (~1.4 MB)
 ├── ssd_mobilenetv1_model-weights_manifest.json
-├── tiny_face_detector_model-shard1        (~193 KB)
+├── ssd_mobilenetv1_model-weights_blob          (~4 MB)
+├── ssd_mobilenetv1_model-weights_blob2         (~1.4 MB)
 ├── tiny_face_detector_model-weights_manifest.json
-├── face_landmark_68_model-shard1          (~357 KB)
+├── tiny_face_detector_model-weights_blob        (~193 KB)
 ├── face_landmark_68_model-weights_manifest.json
-├── face_recognition_model-shard1           (~4 MB)
-├── face_recognition_model-shard2           (~2.2 MB)
-└── face_recognition_model-weights_manifest.json
+├── face_landmark_68_model-weights_blob          (~357 KB)
+├── face_recognition_model-weights_manifest.json
+├── face_recognition_model-weights_blob          (~4 MB)
+└── face_recognition_model-weights_blob2         (~2.2 MB)
 ```
 
 Jika perlu download ulang:
