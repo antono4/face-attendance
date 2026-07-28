@@ -1,0 +1,1381 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sistem Absensi Face Recognition</title>
+    
+    <!-- Tailwind CSS via CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Face-API.js Library -->
+    <script defer src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
+    
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        
+        /* Custom Animations */
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(-10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        @keyframes pulse-ring {
+            0% { transform: scale(0.95); opacity: 1; }
+            50% { transform: scale(1.05); opacity: 0.5; }
+            100% { transform: scale(0.95); opacity: 1; }
+        }
+        
+        .animate-fade-in {
+            animation: fadeIn 0.3s ease-out;
+        }
+        
+        .pulse-ring {
+            animation: pulse-ring 2s infinite;
+        }
+        
+        /* Video container */
+        .video-container {
+            position: relative;
+            width: 100%;
+            max-width: 480px;
+            aspect-ratio: 4/3;
+            background: linear-gradient(135deg, #1f2937 0%, #111827 100%);
+            border-radius: 1rem;
+            overflow: hidden;
+        }
+        
+        .video-container video {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        
+        .video-container canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+        }
+        
+        /* Loading overlay */
+        .loading-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.7);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 100;
+        }
+        
+        /* Modal backdrop */
+        .modal-backdrop {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.5);
+            backdrop-filter: blur(4px);
+            z-index: 50;
+        }
+        
+        /* Table styles */
+        .table-container {
+            overflow-x: auto;
+        }
+        
+        /* Status badge */
+        .status-hadir { background: #d1fae5; color: #065f46; }
+        .status-terlambat { background: #fef3c7; color: #92400e; }
+        
+        /* Button hover effects */
+        .btn-primary {
+            transition: all 0.2s ease;
+        }
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 25px -5px rgba(59, 130, 246, 0.4);
+        }
+        
+        /* Card hover */
+        .card-hover {
+            transition: all 0.3s ease;
+        }
+        .card-hover:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+        }
+    </style>
+</head>
+<body class="bg-gray-100 min-h-screen">
+    
+    <!-- ===================== LOADING OVERLAY ===================== -->
+    <div id="loading-overlay" class="loading-overlay hidden">
+        <div class="text-center">
+            <div class="inline-block w-16 h-16 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+            <p id="loading-text" class="mt-4 text-white text-lg font-medium">Memuat...</p>
+        </div>
+    </div>
+    
+    <!-- ===================== TOAST NOTIFICATION ===================== -->
+    <div id="toast-container" class="fixed top-4 right-4 z-50 space-y-2"></div>
+    
+    <!-- ===================== LOGIN VIEW ===================== -->
+    <div id="login-view" class="min-h-screen flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md p-8 animate-fade-in">
+            <div class="text-center mb-8">
+                <div class="w-20 h-20 mx-auto bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl flex items-center justify-center mb-4 shadow-lg">
+                    <svg class="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
+                    </svg>
+                </div>
+                <h1 class="text-2xl font-bold text-gray-800">Sistem Absensi</h1>
+                <p class="text-gray-500 mt-2">Face Recognition & Payroll</p>
+            </div>
+            
+            <form id="login-form" class="space-y-5">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">NIP (Nomor Induk Pegawai)</label>
+                    <input type="text" id="login-nip" required
+                        class="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
+                        placeholder="Masukkan NIP Anda">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Password</label>
+                    <input type="password" id="login-password" required
+                        class="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
+                        placeholder="Masukkan password">
+                </div>
+                <button type="submit"
+                    class="w-full bg-gradient-to-r from-blue-500 to-blue-600 text-white py-3 rounded-xl font-semibold hover:from-blue-600 hover:to-blue-700 transition shadow-lg btn-primary">
+                    Masuk
+                </button>
+            </form>
+            
+            <div class="mt-6 p-4 bg-blue-50 rounded-xl">
+                <p class="text-xs text-blue-600 font-medium mb-2">Akun Demo:</p>
+                <p class="text-xs text-gray-600">Admin: <code class="bg-gray-200 px-1 rounded">999999</code> / <code class="bg-gray-200 px-1 rounded">admin123</code></p>
+                <p class="text-xs text-gray-600">Pegawai: <code class="bg-gray-200 px-1 rounded">100001</code> / <code class="bg-gray-200 px-1 rounded">employee123</code></p>
+            </div>
+        </div>
+    </div>
+    
+    <!-- ===================== ADMIN VIEW ===================== -->
+    <div id="admin-view" class="hidden min-h-screen">
+        <!-- Header -->
+        <header class="bg-white shadow-sm sticky top-0 z-40">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                <div class="flex justify-between items-center h-16">
+                    <div class="flex items-center space-x-3">
+                        <div class="w-10 h-10 bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl flex items-center justify-center">
+                            <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
+                            </svg>
+                        </div>
+                        <div>
+                            <h1 class="text-lg font-bold text-gray-800">Dashboard Admin</h1>
+                            <p id="admin-name" class="text-xs text-gray-500">Selamat Datang</p>
+                        </div>
+                    </div>
+                    <button onclick="logout()" class="flex items-center space-x-2 text-gray-600 hover:text-red-600 transition">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/>
+                        </svg>
+                        <span class="text-sm font-medium">Keluar</span>
+                    </button>
+                </div>
+            </div>
+        </header>
+        
+        <!-- Main Content -->
+        <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+            
+            <!-- Summary Cards -->
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+                <div class="bg-white rounded-xl p-6 shadow-sm card-hover">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="text-sm text-gray-500">Total Pegawai</p>
+                            <p id="stat-total-pegawai" class="text-3xl font-bold text-gray-800 mt-1">0</p>
+                        </div>
+                        <div class="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center">
+                            <svg class="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/>
+                            </svg>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="bg-white rounded-xl p-6 shadow-sm card-hover">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="text-sm text-gray-500">Hadir Bulan Ini</p>
+                            <p id="stat-hadir" class="text-3xl font-bold text-green-600 mt-1">0</p>
+                        </div>
+                        <div class="w-12 h-12 bg-green-100 rounded-xl flex items-center justify-center">
+                            <svg class="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                            </svg>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="bg-white rounded-xl p-6 shadow-sm card-hover">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="text-sm text-gray-500">Terlambat</p>
+                            <p id="stat-terlambat" class="text-3xl font-bold text-yellow-600 mt-1">0</p>
+                        </div>
+                        <div class="w-12 h-12 bg-yellow-100 rounded-xl flex items-center justify-center">
+                            <svg class="w-6 h-6 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                            </svg>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="bg-white rounded-xl p-6 shadow-sm card-hover">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="text-sm text-gray-500">Periode</p>
+                            <p id="stat-periode" class="text-lg font-bold text-gray-800 mt-1">-</p>
+                        </div>
+                        <div class="w-12 h-12 bg-purple-100 rounded-xl flex items-center justify-center">
+                            <svg class="w-6 h-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+                            </svg>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Action Buttons -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+                <button onclick="openRegisterFaceModal()" class="bg-white rounded-xl p-6 shadow-sm hover:shadow-md transition text-left card-hover">
+                    <div class="flex items-center space-x-4">
+                        <div class="w-14 h-14 bg-gradient-to-br from-green-400 to-green-500 rounded-xl flex items-center justify-center">
+                            <svg class="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"/>
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"/>
+                            </svg>
+                        </div>
+                        <div>
+                            <h3 class="font-semibold text-gray-800">Daftarkan Wajah Pegawai</h3>
+                            <p class="text-sm text-gray-500">Register face descriptor untuk absensi</p>
+                        </div>
+                    </div>
+                </button>
+                
+                <button onclick="generatePayroll()" class="bg-white rounded-xl p-6 shadow-sm hover:shadow-md transition text-left card-hover">
+                    <div class="flex items-center space-x-4">
+                        <div class="w-14 h-14 bg-gradient-to-br from-purple-400 to-purple-500 rounded-xl flex items-center justify-center">
+                            <svg class="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2z"/>
+                            </svg>
+                        </div>
+                        <div>
+                            <h3 class="font-semibold text-gray-800">Generate Payroll</h3>
+                            <p class="text-sm text-gray-500">Hitung gaji berdasarkan kehadiran</p>
+                        </div>
+                    </div>
+                </button>
+            </div>
+            
+            <!-- Filter & Table -->
+            <div class="bg-white rounded-xl shadow-sm">
+                <div class="p-6 border-b border-gray-100">
+                    <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center space-y-4 sm:space-y-0">
+                        <h2 class="text-lg font-semibold text-gray-800">Rekapitulasi Absensi</h2>
+                        <div class="flex items-center space-x-4">
+                            <select id="filter-bulan" onchange="loadRekapAbsen()" class="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                                <option value="1">Januari</option>
+                                <option value="2">Februari</option>
+                                <option value="3">Maret</option>
+                                <option value="4">April</option>
+                                <option value="5">Mei</option>
+                                <option value="6">Juni</option>
+                                <option value="7">Juli</option>
+                                <option value="8">Agustus</option>
+                                <option value="9">September</option>
+                                <option value="10">Oktober</option>
+                                <option value="11">November</option>
+                                <option value="12">Desember</option>
+                            </select>
+                            <select id="filter-tahun" onchange="loadRekapAbsen()" class="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                            </select>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="table-container">
+                    <table class="w-full">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">No</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">NIP</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nama</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tanggal</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Masuk</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Keluar</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                            </tr>
+                        </thead>
+                        <tbody id="rekap-table-body" class="divide-y divide-gray-200">
+                            <tr>
+                                <td colspan="7" class="px-6 py-12 text-center text-gray-500">Memuat data...</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </main>
+    </div>
+    
+    <!-- ===================== PEGAWAI VIEW ===================== -->
+    <div id="pegawai-view" class="hidden min-h-screen">
+        <!-- Header -->
+        <header class="bg-white shadow-sm sticky top-0 z-40">
+            <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+                <div class="flex justify-between items-center h-16">
+                    <div class="flex items-center space-x-3">
+                        <div class="w-10 h-10 bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl flex items-center justify-center">
+                            <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
+                            </svg>
+                        </div>
+                        <div>
+                            <h1 class="text-lg font-bold text-gray-800">Dashboard Pegawai</h1>
+                            <p id="pegawai-name" class="text-xs text-gray-500">Selamat Datang</p>
+                        </div>
+                    </div>
+                    <button onclick="logout()" class="flex items-center space-x-2 text-gray-600 hover:text-red-600 transition">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/>
+                        </svg>
+                        <span class="text-sm font-medium">Keluar</span>
+                    </button>
+                </div>
+            </div>
+        </header>
+        
+        <!-- Main Content -->
+        <main class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+            
+            <!-- Profile Card -->
+            <div class="bg-white rounded-2xl shadow-sm p-6 mb-8">
+                <div class="flex items-center space-x-6">
+                    <div class="w-20 h-20 bg-gradient-to-br from-blue-400 to-blue-500 rounded-full flex items-center justify-center text-white text-2xl font-bold">
+                        <span id="profile-initial">P</span>
+                    </div>
+                    <div class="flex-1">
+                        <h2 id="profile-nama" class="text-xl font-bold text-gray-800">Nama Pegawai</h2>
+                        <p id="profile-nip" class="text-gray-500">NIP: -</p>
+                        <p class="text-gray-500">Gaji Pokok: <span id="profile-gaji" class="font-semibold text-gray-700">Rp 0</span></p>
+                    </div>
+                    <div id="face-status" class="px-4 py-2 rounded-lg text-sm font-medium">
+                        <span class="bg-gray-100 text-gray-600">Wajah belum terdaftar</span>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Absensi Button -->
+            <div class="bg-white rounded-2xl shadow-sm p-8 mb-8 text-center">
+                <h3 class="text-lg font-semibold text-gray-800 mb-4">Absensi Hari Ini</h3>
+                <p id="tanggal-hari-ini" class="text-gray-500 mb-6"></p>
+                
+                <button onclick="openAbsenModal()" id="btn-absen" class="inline-flex items-center justify-center space-x-3 bg-gradient-to-r from-green-500 to-green-600 text-white px-12 py-6 rounded-2xl font-semibold text-lg hover:from-green-600 hover:to-green-700 transition shadow-lg btn-primary">
+                    <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
+                    </svg>
+                    <span>ABSEN SEKARANG</span>
+                </button>
+                
+                <div id="absen-status" class="mt-6 hidden">
+                    <div class="inline-flex items-center space-x-2 px-4 py-2 bg-green-100 text-green-700 rounded-lg">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                        </svg>
+                        <span id="absen-status-text">Berhasil absen</span>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Payroll History -->
+            <div class="bg-white rounded-2xl shadow-sm">
+                <div class="p-6 border-b border-gray-100">
+                    <h3 class="text-lg font-semibold text-gray-800">Riwayat Gaji</h3>
+                </div>
+                <div class="table-container">
+                    <table class="w-full">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Periode</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total Kehadiran</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total Gaji</th>
+                            </tr>
+                        </thead>
+                        <tbody id="payroll-table-body" class="divide-y divide-gray-200">
+                            <tr>
+                                <td colspan="3" class="px-6 py-12 text-center text-gray-500">Memuat data...</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </main>
+    </div>
+    
+    <!-- ===================== KAMERA MODAL ===================== -->
+    <div id="kamera-modal" class="hidden fixed inset-0 z-50">
+        <div class="modal-backdrop" onclick="closeKameraModal()"></div>
+        <div class="relative z-10 flex items-center justify-center min-h-screen p-4">
+            <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden animate-fade-in">
+                <!-- Modal Header -->
+                <div class="p-6 border-b border-gray-100">
+                    <div class="flex justify-between items-center">
+                        <h3 id="kamera-title" class="text-lg font-semibold text-gray-800">Pendaftaran Wajah</h3>
+                        <button onclick="closeKameraModal()" class="text-gray-400 hover:text-gray-600 transition">
+                            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                            </svg>
+                        </button>
+                    </div>
+                    <p id="kamera-subtitle" class="text-sm text-gray-500 mt-1">Posisikan wajah Anda di dalam frame</p>
+                </div>
+                
+                <!-- Video Container -->
+                <div class="p-6">
+                    <div class="video-container mx-auto">
+                        <video id="video-element" autoplay muted playsinline></video>
+                        <canvas id="canvas-element"></canvas>
+                    </div>
+                    
+                    <!-- Detection Status -->
+                    <div id="detection-status" class="mt-4 text-center">
+                        <div class="inline-flex items-center space-x-2 px-4 py-2 bg-gray-100 rounded-lg">
+                            <div class="w-3 h-3 bg-yellow-500 rounded-full pulse-ring"></div>
+                            <span class="text-sm text-gray-600">Mendeteksi wajah...</span>
+                        </div>
+                    </div>
+                    
+                    <!-- Loading indicator -->
+                    <div id="model-loading" class="hidden mt-4 text-center">
+                        <div class="inline-flex items-center space-x-2 px-4 py-2 bg-blue-50 rounded-lg">
+                            <div class="w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+                            <span class="text-sm text-blue-600">Memuat model face detection...</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Modal Footer -->
+                <div class="p-6 bg-gray-50">
+                    <button onclick="closeKameraModal()" class="w-full px-4 py-3 border border-gray-300 rounded-xl text-gray-700 font-medium hover:bg-gray-100 transition">
+                        Batal
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- ===================== DAFTAR PEGAWAI MODAL (Admin) ===================== -->
+    <div id="daftar-pegawai-modal" class="hidden fixed inset-0 z-50">
+        <div class="modal-backdrop" onclick="closeDaftarPegawaiModal()"></div>
+        <div class="relative z-10 flex items-center justify-center min-h-screen p-4">
+            <div class="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden animate-fade-in">
+                <!-- Modal Header -->
+                <div class="p-6 border-b border-gray-100">
+                    <div class="flex justify-between items-center">
+                        <h3 class="text-lg font-semibold text-gray-800">Pilih Pegawai</h3>
+                        <button onclick="closeDaftarPegawaiModal()" class="text-gray-400 hover:text-gray-600 transition">
+                            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                            </svg>
+                        </button>
+                    </div>
+                    <p class="text-sm text-gray-500 mt-1">Pilih pegawai yang akan didaftarkan wajahnya</p>
+                </div>
+                
+                <!-- Pegawai List -->
+                <div class="p-6 overflow-y-auto max-h-[60vh]">
+                    <div id="pegawai-list" class="space-y-3">
+                        <!-- Loaded dynamically -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- ===================== PAYROLL RESULT MODAL ===================== -->
+    <div id="payroll-modal" class="hidden fixed inset-0 z-50">
+        <div class="modal-backdrop" onclick="closePayrollModal()"></div>
+        <div class="relative z-10 flex items-center justify-center min-h-screen p-4">
+            <div class="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden animate-fade-in">
+                <!-- Modal Header -->
+                <div class="p-6 border-b border-gray-100">
+                    <div class="flex justify-between items-center">
+                        <h3 id="payroll-modal-title" class="text-lg font-semibold text-gray-800">Result Payroll</h3>
+                        <button onclick="closePayrollModal()" class="text-gray-400 hover:text-gray-600 transition">
+                            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Payroll Table -->
+                <div class="p-6 overflow-y-auto max-h-[70vh]">
+                    <table class="w-full">
+                        <thead class="bg-gray-50 sticky top-0">
+                            <tr>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">NIP</th>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nama</th>
+                                <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Kehadiran</th>
+                                <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Gaji/Hari</th>
+                                <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Total Gaji</th>
+                            </tr>
+                        </thead>
+                        <tbody id="payroll-result-body" class="divide-y divide-gray-200">
+                        </tbody>
+                    </table>
+                </div>
+                
+                <!-- Modal Footer -->
+                <div class="p-6 bg-gray-50">
+                    <button onclick="closePayrollModal()" class="w-full px-4 py-3 bg-blue-600 text-white rounded-xl font-medium hover:bg-blue-700 transition">
+                        Tutup
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- ===================== JAVASCRIPT ===================== -->
+    <script>
+        /**
+         * =============================================
+         * KONFIGURASI & STATE
+         * =============================================
+         */
+        
+        // API Base URL
+        const API_URL = 'api.php';
+        
+        // Model URLs untuk face-api.js
+        // MODEL INSTRUKSI:
+        // 1. Buat folder /models di server yang sama dengan index.html
+        // 2. Download model dari: https://github.com/justadudewhohacks/face-api.js/tree/master/weights
+        // 3. Model yang diperlukan:
+        //    - ssd_mobilenetv1_model-weights_manifest.json
+        //    - ssd_mobilenetv1_model-weights_blob
+        //    - tiny_face_detector_model-weights_manifest.json
+        //    - tiny_face_detector_model-weights_blob
+        //    - face_landmark_68_model-weights_manifest.json
+        //    - face_landmark_68_model-weights_blob
+        //    - face_recognition_model-weights_manifest.json
+        //    - face_recognition_model-weights_blob
+        const MODEL_URL = '/models';
+        
+        // Application State
+        let currentUser = null;
+        let isModelLoaded = false;
+        let selectedPegawaiId = null;
+        let isRegisterMode = false; // true = register face, false = absen
+        
+        // Face Detection Options
+        const faceDetectionOptions = new faceapi.SsdMobilenetv1Options({
+            minConfidence: 0.5,
+            maxResults: 1
+        });
+        
+        /**
+         * =============================================
+         * HELPER FUNCTIONS
+         * =============================================
+         */
+        
+        // Format currency Indonesia
+        function formatCurrency(amount) {
+            return new Intl.NumberFormat('id-ID', {
+                style: 'currency',
+                currency: 'IDR',
+                minimumFractionDigits: 0
+            }).format(amount);
+        }
+        
+        // Format tanggal Indonesia
+        function formatTanggal(dateStr) {
+            const options = { day: '2-digit', month: 'long', year: 'numeric' };
+            return new Date(dateStr).toLocaleDateString('id-ID', options);
+        }
+        
+        // Get nama bulan Indonesia
+        function getNamaBulan(bulan) {
+            const namaBulan = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 
+                             'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
+            return namaBulan[bulan - 1];
+        }
+        
+        // Toast notification
+        function showToast(message, type = 'success') {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            
+            const bgColor = type === 'success' ? 'bg-green-500' : type === 'error' ? 'bg-red-500' : 'bg-yellow-500';
+            
+            toast.className = `${bgColor} text-white px-6 py-3 rounded-xl shadow-lg flex items-center space-x-3 animate-fade-in`;
+            toast.innerHTML = `
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    ${type === 'success' 
+                        ? '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>'
+                        : '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>'}
+                </svg>
+                <span>${message}</span>
+            `;
+            
+            container.appendChild(toast);
+            
+            setTimeout(() => {
+                toast.remove();
+            }, 4000);
+        }
+        
+        // Show/Hide loading
+        function showLoading(text = 'Memuat...') {
+            document.getElementById('loading-text').textContent = text;
+            document.getElementById('loading-overlay').classList.remove('hidden');
+        }
+        
+        function hideLoading() {
+            document.getElementById('loading-overlay').classList.add('hidden');
+        }
+        
+        /**
+         * =============================================
+         * API FUNCTIONS
+         * =============================================
+         */
+        
+        // Generic fetch wrapper
+        async function apiCall(action, data = {}) {
+            try {
+                const response = await fetch(`${API_URL}?action=${action}`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(data)
+                });
+                
+                const result = await response.json();
+                
+                if (!result.success && response.status >= 400) {
+                    throw new Error(result.message || 'Terjadi kesalahan');
+                }
+                
+                return result;
+            } catch (error) {
+                throw error;
+            }
+        }
+        
+        // Login
+        async function login(nip, password) {
+            const result = await apiCall('login', { nip, password });
+            if (result.success) {
+                currentUser = result.data;
+                sessionStorage.setItem('user', JSON.stringify(currentUser));
+            }
+            return result;
+        }
+        
+        // Register Face
+        async function registerFace(userId, faceDescriptor) {
+            return await apiCall('register_face', { user_id: userId, face_descriptor: faceDescriptor });
+        }
+        
+        // Verify Face
+        async function verifyFace(userId, faceDescriptor) {
+            return await apiCall('verify_face', { user_id: userId, face_descriptor: faceDescriptor });
+        }
+        
+        // Absen
+        async function absen(userId) {
+            return await apiCall('absen', { user_id: userId });
+        }
+        
+        // Get Rekap Absen
+        async function getRekapAbsen(bulan, tahun) {
+            return await apiCall('get_rekap_absen', { bulan, tahun });
+        }
+        
+        // Get Payroll
+        async function getPayroll(userId) {
+            return await apiCall('get_payroll', { user_id: userId });
+        }
+        
+        // Generate Payroll
+        async function generatePayrollAPI(bulan, tahun) {
+            return await apiCall('generate_payroll', { bulan, tahun });
+        }
+        
+        // Get Users
+        async function getUsers() {
+            return await apiCall('get_users');
+        }
+        
+        /**
+         * =============================================
+         * VIEW MANAGEMENT
+         * =============================================
+         */
+        
+        function showView(viewName) {
+            // Hide all views
+            document.getElementById('login-view').classList.add('hidden');
+            document.getElementById('admin-view').classList.add('hidden');
+            document.getElementById('pegawai-view').classList.add('hidden');
+            
+            // Show requested view
+            document.getElementById(`${viewName}-view`).classList.remove('hidden');
+        }
+        
+        function logout() {
+            currentUser = null;
+            sessionStorage.removeItem('user');
+            showView('login');
+            document.getElementById('login-form').reset();
+            showToast('Berhasil logout', 'success');
+        }
+        
+        /**
+         * =============================================
+         * FACE-API.JS FUNCTIONS
+         * =============================================
+         */
+        
+        // Initialize Face API models
+        async function loadFaceModels() {
+            try {
+                document.getElementById('model-loading').classList.remove('hidden');
+                
+                // Load all required models
+                await Promise.all([
+                    faceapi.nets.ssdMobilenetv1.loadFromUri(MODEL_URL),
+                    faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL),
+                    faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL)
+                ]);
+                
+                isModelLoaded = true;
+                console.log('Face API models loaded successfully');
+                document.getElementById('model-loading').classList.add('hidden');
+                
+            } catch (error) {
+                console.error('Error loading Face API models:', error);
+                document.getElementById('model-loading').innerHTML = `
+                    <div class="inline-flex items-center space-x-2 px-4 py-2 bg-red-50 rounded-lg">
+                        <span class="text-sm text-red-600">Error: ${error.message}</span>
+                    </div>
+                `;
+            }
+        }
+        
+        // Start video stream
+        async function startVideoStream() {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({
+                    video: {
+                        width: { ideal: 640 },
+                        height: { ideal: 480 },
+                        facingMode: 'user'
+                    }
+                });
+                
+                const video = document.getElementById('video-element');
+                video.srcObject = stream;
+                
+                return new Promise((resolve) => {
+                    video.onloadedmetadata = () => {
+                        resolve();
+                    };
+                });
+            } catch (error) {
+                throw new Error('Tidak dapat mengakses kamera: ' + error.message);
+            }
+        }
+        
+        // Stop video stream
+        function stopVideoStream() {
+            const video = document.getElementById('video-element');
+            if (video.srcObject) {
+                video.srcObject.getTracks().forEach(track => track.stop());
+                video.srcObject = null;
+            }
+        }
+        
+        // Detect face and get descriptor
+        async function detectFace() {
+            const video = document.getElementById('video-element');
+            const canvas = document.getElementById('canvas-element');
+            
+            const detection = await faceapi
+                .detectSingleFace(video, faceDetectionOptions)
+                .withFaceLandmarks()
+                .withFaceDescriptor();
+            
+            // Clear canvas
+            const ctx = canvas.getContext('2d');
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            if (detection) {
+                // Draw face box
+                const box = detection.detection.box;
+                new faceapi.draw.DrawBox(box, {
+                    label: 'Wajah Terdeteksi',
+                    color: 'green',
+                    lineWidth: 3
+                }).draw(canvas);
+                
+                return detection.descriptor;
+            }
+            
+            return null;
+        }
+        
+        /**
+         * =============================================
+         * KAMERA MODAL FUNCTIONS
+         * =============================================
+         */
+        
+        async function openKameraModal(mode, userId = null) {
+            selectedPegawaiId = userId;
+            isRegisterMode = (mode === 'register');
+            
+            // Set modal content
+            if (isRegisterMode) {
+                document.getElementById('kamera-title').textContent = 'Daftarkan Wajah';
+                document.getElementById('kamera-subtitle').textContent = 'Posisikan wajah Anda di dalam frame';
+            } else {
+                document.getElementById('kamera-title').textContent = 'Absensi Wajah';
+                document.getElementById('kamera-subtitle').textContent = 'Arahkan wajah Anda ke kamera untuk verifikasi';
+            }
+            
+            // Show modal
+            document.getElementById('kamera-modal').classList.remove('hidden');
+            
+            // Start video
+            try {
+                showLoading('Mengaktifkan kamera...');
+                await startVideoStream();
+                
+                // Resize canvas to match video
+                const video = document.getElementById('video-element');
+                const canvas = document.getElementById('canvas-element');
+                canvas.width = video.videoWidth;
+                canvas.height = video.videoHeight;
+                
+                hideLoading();
+                
+                // Start detection loop
+                startFaceDetectionLoop();
+                
+            } catch (error) {
+                hideLoading();
+                showToast(error.message, 'error');
+                closeKameraModal();
+            }
+        }
+        
+        function closeKameraModal() {
+            document.getElementById('kamera-modal').classList.add('hidden');
+            stopVideoStream();
+            
+            // Reset detection status
+            document.getElementById('detection-status').classList.remove('hidden');
+            document.getElementById('detection-status').innerHTML = `
+                <div class="inline-flex items-center space-x-2 px-4 py-2 bg-gray-100 rounded-lg">
+                    <div class="w-3 h-3 bg-yellow-500 rounded-full pulse-ring"></div>
+                    <span class="text-sm text-gray-600">Mendeteksi wajah...</span>
+                </div>
+            `;
+        }
+        
+        let detectionInterval = null;
+        
+        function startFaceDetectionLoop() {
+            if (detectionInterval) {
+                clearInterval(detectionInterval);
+            }
+            
+            detectionInterval = setInterval(async () => {
+                if (!isModelLoaded) return;
+                
+                try {
+                    const descriptor = await detectFace();
+                    
+                    if (descriptor) {
+                        // Face detected
+                        document.getElementById('detection-status').innerHTML = `
+                            <div class="inline-flex items-center space-x-2 px-4 py-2 bg-green-100 rounded-lg">
+                                <div class="w-3 h-3 bg-green-500 rounded-full pulse-ring"></div>
+                                <span class="text-sm text-green-600">Wajah terdeteksi! ${isRegisterMode ? 'Tunggu...' : 'Klik untuk absen'}</span>
+                            </div>
+                        `;
+                        
+                        if (isRegisterMode) {
+                            // Auto-capture for register after short delay
+                            setTimeout(() => {
+                                if (document.getElementById('kamera-modal').classList.contains('hidden') === false) {
+                                    captureAndRegisterFace(descriptor);
+                                }
+                            }, 1500);
+                        }
+                    } else {
+                        // No face detected
+                        document.getElementById('detection-status').innerHTML = `
+                            <div class="inline-flex items-center space-x-2 px-4 py-2 bg-gray-100 rounded-lg">
+                                <div class="w-3 h-3 bg-yellow-500 rounded-full pulse-ring"></div>
+                                <span class="text-sm text-gray-600">Mendeteksi wajah...</span>
+                            </div>
+                        `;
+                    }
+                } catch (error) {
+                    console.error('Detection error:', error);
+                }
+            }, 500);
+        }
+        
+        // Capture and register face
+        async function captureAndRegisterFace(descriptor) {
+            if (detectionInterval) {
+                clearInterval(detectionInterval);
+            }
+            
+            try {
+                showLoading('Mendaftarkan wajah...');
+                
+                const result = await registerFace(selectedPegawaiId, Array.from(descriptor));
+                
+                hideLoading();
+                
+                if (result.success) {
+                    showToast('Wajah berhasil didaftarkan!', 'success');
+                    closeKameraModal();
+                    loadUsersList();
+                    
+                    // Update face status if same user
+                    if (currentUser && currentUser.id === selectedPegawaiId) {
+                        currentUser.face_descriptor = Array.from(descriptor);
+                        sessionStorage.setItem('user', JSON.stringify(currentUser));
+                        updatePegawaiView();
+                    }
+                } else {
+                    showToast(result.message, 'error');
+                }
+                
+            } catch (error) {
+                hideLoading();
+                showToast('Error: ' + error.message, 'error');
+            }
+        }
+        
+        // Capture and verify face for attendance
+        async function captureAndVerifyFace() {
+            if (detectionInterval) {
+                clearInterval(detectionInterval);
+            }
+            
+            try {
+                showLoading('Memverifikasi wajah...');
+                
+                const descriptor = await detectFace();
+                
+                if (!descriptor) {
+                    hideLoading();
+                    showToast('Wajah tidak terdeteksi', 'error');
+                    return;
+                }
+                
+                // Verify face
+                const verifyResult = await verifyFace(currentUser.id, Array.from(descriptor));
+                
+                if (!verifyResult.success || !verifyResult.data.verified) {
+                    hideLoading();
+                    showToast('Wajah tidak cocok dengan data terdaftar', 'error');
+                    return;
+                }
+                
+                // Proceed with attendance
+                const absenResult = await absen(currentUser.id);
+                
+                hideLoading();
+                
+                if (absenResult.success) {
+                    showToast(absenResult.message, 'success');
+                    closeKameraModal();
+                    updateAbsenStatus(absenResult.data);
+                } else {
+                    showToast(absenResult.message, 'error');
+                }
+                
+            } catch (error) {
+                hideLoading();
+                showToast('Error: ' + error.message, 'error');
+            }
+        }
+        
+        /**
+         * =============================================
+         * ADMIN FUNCTIONS
+         * =============================================
+         */
+        
+        async function loadRekapAbsen() {
+            const bulan = document.getElementById('filter-bulan').value;
+            const tahun = document.getElementById('filter-tahun').value;
+            
+            try {
+                const result = await getRekapAbsen(bulan, tahun);
+                
+                if (result.success) {
+                    // Update statistics
+                    document.getElementById('stat-total-pegawai').textContent = result.data.summary.total_pegawai;
+                    document.getElementById('stat-hadir').textContent = result.data.summary.total_absensi - result.data.summary.total_terlambat;
+                    document.getElementById('stat-terlambat').textContent = result.data.summary.total_terlambat;
+                    document.getElementById('stat-periode').textContent = result.data.periode.nama_bulan + ' ' + result.data.periode.tahun;
+                    
+                    // Render table
+                    renderRekapTable(result.data.data);
+                }
+            } catch (error) {
+                showToast('Error memuat data: ' + error.message, 'error');
+            }
+        }
+        
+        function renderRekapTable(data) {
+            const tbody = document.getElementById('rekap-table-body');
+            
+            if (data.length === 0) {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="7" class="px-6 py-12 text-center text-gray-500">Tidak ada data absensi</td>
+                    </tr>
+                `;
+                return;
+            }
+            
+            tbody.innerHTML = data.map((item, index) => `
+                <tr class="hover:bg-gray-50">
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${index + 1}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${item.nip}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700">${item.nama_lengkap}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${formatTanggal(item.tanggal)}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${item.waktu_masuk || '-'}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${item.waktu_keluar || '-'}</td>
+                    <td class="px-6 py-4 whitespace-nowrap">
+                        <span class="px-2 py-1 text-xs font-medium rounded-full ${item.status === 'hadir' ? 'status-hadir' : 'status-terlambat'}">
+                            ${item.status === 'hadir' ? 'Hadir' : 'Terlambat'}
+                        </span>
+                    </td>
+                </tr>
+            `).join('');
+        }
+        
+        async function loadUsersList() {
+            try {
+                const result = await getUsers();
+                
+                if (result.success) {
+                    const pegawaiList = result.data.filter(u => u.role === 'pegawai');
+                    renderPegawaiList(pegawaiList);
+                }
+            } catch (error) {
+                showToast('Error memuat daftar pegawai', 'error');
+            }
+        }
+        
+        function renderPegawaiList(pegawai) {
+            const container = document.getElementById('pegawai-list');
+            
+            container.innerHTML = pegawai.map(p => `
+                <div class="flex items-center justify-between p-4 border border-gray-200 rounded-xl hover:border-blue-300 hover:bg-blue-50 transition cursor-pointer"
+                     onclick="selectPegawai(${p.id}, '${p.nama_lengkap}', ${p.has_face})">
+                    <div class="flex items-center space-x-4">
+                        <div class="w-12 h-12 bg-gradient-to-br from-gray-300 to-gray-400 rounded-full flex items-center justify-center text-white font-bold">
+                            ${p.nama_lengkap.charAt(0)}
+                        </div>
+                        <div>
+                            <h4 class="font-medium text-gray-800">${p.nama_lengkap}</h4>
+                            <p class="text-sm text-gray-500">NIP: ${p.nip}</p>
+                        </div>
+                    </div>
+                    <div>
+                        ${p.has_face 
+                            ? '<span class="px-3 py-1 bg-green-100 text-green-700 text-xs font-medium rounded-full">Terdaftar</span>'
+                            : '<span class="px-3 py-1 bg-gray-100 text-gray-600 text-xs font-medium rounded-full">Belum</span>'
+                        }
+                    </div>
+                </div>
+            `).join('');
+        }
+        
+        function selectPegawai(id, nama, hasFace) {
+            closeDaftarPegawaiModal();
+            
+            if (!hasFace) {
+                openKameraModal('register', id);
+            } else {
+                if (confirm(`${nama} sudah memiliki data wajah. Ingin daftarkan ulang?`)) {
+                    openKameraModal('register', id);
+                }
+            }
+        }
+        
+        function openRegisterFaceModal() {
+            loadUsersList();
+            document.getElementById('daftar-pegawai-modal').classList.remove('hidden');
+        }
+        
+        function closeDaftarPegawaiModal() {
+            document.getElementById('daftar-pegawai-modal').classList.add('hidden');
+        }
+        
+        async function generatePayroll() {
+            const bulan = document.getElementById('filter-bulan').value;
+            const tahun = document.getElementById('filter-tahun').value;
+            
+            try {
+                showLoading('Generate payroll...');
+                
+                const result = await generatePayrollAPI(bulan, tahun);
+                
+                hideLoading();
+                
+                if (result.success) {
+                    showPayrollResult(result.data);
+                    showToast('Payroll berhasil digenerate!', 'success');
+                } else {
+                    showToast(result.message, 'error');
+                }
+            } catch (error) {
+                hideLoading();
+                showToast('Error: ' + error.message, 'error');
+            }
+        }
+        
+        function showPayrollResult(data) {
+            document.getElementById('payroll-modal-title').textContent = `Payroll ${data.periode.nama_bulan}`;
+            
+            const tbody = document.getElementById('payroll-result-body');
+            tbody.innerHTML = data.data.map(p => `
+                <tr class="hover:bg-gray-50">
+                    <td class="px-4 py-3 text-sm font-medium text-gray-900">${p.nip}</td>
+                    <td class="px-4 py-3 text-sm text-gray-700">${p.nama_lengkap}</td>
+                    <td class="px-4 py-3 text-sm text-gray-700 text-right">${p.total_kehadiran} hari</td>
+                    <td class="px-4 py-3 text-sm text-gray-700 text-right">${formatCurrency(p.gaji_per_hari)}</td>
+                    <td class="px-4 py-3 text-sm font-semibold text-gray-900 text-right">${formatCurrency(p.total_gaji)}</td>
+                </tr>
+            `).join('');
+            
+            document.getElementById('payroll-modal').classList.remove('hidden');
+        }
+        
+        function closePayrollModal() {
+            document.getElementById('payroll-modal').classList.add('hidden');
+        }
+        
+        function updateAdminView() {
+            if (currentUser.role !== 'admin') return;
+            
+            document.getElementById('admin-name').textContent = `Admin: ${currentUser.nama_lengkap}`;
+            
+            // Set current month and year in filters
+            const now = new Date();
+            document.getElementById('filter-bulan').value = now.getMonth() + 1;
+            
+            // Populate tahun dropdown
+            const tahunSelect = document.getElementById('filter-tahun');
+            const currentYear = now.getFullYear();
+            tahunSelect.innerHTML = '';
+            for (let y = currentYear - 2; y <= currentYear + 1; y++) {
+                tahunSelect.innerHTML += `<option value="${y}" ${y === currentYear ? 'selected' : ''}>${y}</option>`;
+            }
+            
+            loadRekapAbsen();
+        }
+        
+        /**
+         * =============================================
+         * PEGAWAI FUNCTIONS
+         * =============================================
+         */
+        
+        async function updatePegawaiView() {
+            if (!currentUser || currentUser.role !== 'pegawai') return;
+            
+            document.getElementById('pegawai-name').textContent = `Hai, ${currentUser.nama_lengkap}`;
+            document.getElementById('profile-nama').textContent = currentUser.nama_lengkap;
+            document.getElementById('profile-nip').textContent = `NIP: ${currentUser.nip}`;
+            document.getElementById('profile-gaji').textContent = formatCurrency(currentUser.gaji_pokok);
+            document.getElementById('profile-initial').textContent = currentUser.nama_lengkap.charAt(0);
+            document.getElementById('tanggal-hari-ini').textContent = formatTanggal(new Date());
+            
+            // Update face status
+            const faceStatus = document.getElementById('face-status');
+            if (currentUser.face_descriptor && currentUser.face_descriptor.length === 128) {
+                faceStatus.innerHTML = '<span class="bg-green-100 text-green-700">Wajah Terdaftar</span>';
+            } else {
+                faceStatus.innerHTML = '<span class="bg-yellow-100 text-yellow-700">Wajah Belum Terdaftar</span>';
+            }
+            
+            // Load payroll history
+            loadPayrollHistory();
+        }
+        
+        async function loadPayrollHistory() {
+            try {
+                const result = await getPayroll(currentUser.id);
+                
+                if (result.success) {
+                    renderPayrollHistory(result.data.payroll);
+                }
+            } catch (error) {
+                console.error('Error loading payroll:', error);
+            }
+        }
+        
+        function renderPayrollHistory(data) {
+            const tbody = document.getElementById('payroll-table-body');
+            
+            if (data.length === 0) {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="3" class="px-6 py-12 text-center text-gray-500">Belum ada data payroll</td>
+                    </tr>
+                `;
+                return;
+            }
+            
+            tbody.innerHTML = data.map(p => `
+                <tr class="hover:bg-gray-50">
+                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                        ${getNamaBulan(p.bulan)} ${p.tahun}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700">${p.total_kehadiran} hari</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm font-semibold text-green-600">${formatCurrency(p.total_gaji)}</td>
+                </tr>
+            `).join('');
+        }
+        
+        function updateAbsenStatus(data) {
+            const statusDiv = document.getElementById('absen-status');
+            const statusText = document.getElementById('absen-status-text');
+            const btnAbsen = document.getElementById('btn-absen');
+            
+            if (data.jenis === 'masuk') {
+                statusText.textContent = `Absensi masuk berhasil - ${data.waktu_masuk} (${data.status})`;
+                statusDiv.classList.remove('hidden');
+                btnAbsen.innerHTML = `
+                    <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/>
+                    </svg>
+                    <span>ABSEN KELUAR</span>
+                `;
+            } else {
+                statusText.textContent = `Absensi keluar berhasil - ${data.waktu_keluar}`;
+                statusDiv.classList.remove('hidden');
+                btnAbsen.disabled = true;
+                btnAbsen.classList.add('opacity-50', 'cursor-not-allowed');
+                btnAbsen.innerHTML = `
+                    <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                    </svg>
+                    <span>SUDAH ABSEN</span>
+                `;
+            }
+        }
+        
+        function openAbsenModal() {
+            if (!currentUser.face_descriptor || currentUser.face_descriptor.length !== 128) {
+                showToast('Anda belum mendaftarkan wajah. Hubungi admin.', 'error');
+                return;
+            }
+            
+            // Add click handler to video element
+            const video = document.getElementById('video-element');
+            video.onclick = captureAndVerifyFace;
+            
+            openKameraModal('absen', currentUser.id);
+        }
+        
+        /**
+         * =============================================
+         * EVENT LISTENERS & INITIALIZATION
+         * =============================================
+         */
+        
+        // Login Form Submit
+        document.getElementById('login-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const nip = document.getElementById('login-nip').value;
+            const password = document.getElementById('login-password').value;
+            
+            try {
+                showLoading('Memproses login...');
+                
+                const result = await login(nip, password);
+                
+                hideLoading();
+                
+                if (result.success) {
+                    showToast(`Selamat datang, ${result.data.nama_lengkap}!`, 'success');
+                    
+                    if (result.data.role === 'admin') {
+                        showView('admin');
+                        updateAdminView();
+                    } else {
+                        showView('pegawai');
+                        updatePegawaiView();
+                    }
+                } else {
+                    showToast(result.message, 'error');
+                }
+            } catch (error) {
+                hideLoading();
+                showToast('Error: ' + error.message, 'error');
+            }
+        });
+        
+        // Initialize on page load
+        document.addEventListener('DOMContentLoaded', async () => {
+            // Check for existing session
+            const storedUser = sessionStorage.getItem('user');
+            
+            if (storedUser) {
+                currentUser = JSON.parse(storedUser);
+                
+                if (currentUser.role === 'admin') {
+                    showView('admin');
+                    updateAdminView();
+                } else {
+                    showView('pegawai');
+                    updatePegawaiView();
+                }
+            } else {
+                showView('login');
+            }
+            
+            // Load Face API models
+            await loadFaceModels();
+        });
+    </script>
+</body>
+</html>
