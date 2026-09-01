@@ -1,2 +1,30 @@
-Last updated: 2026-09-02 04:58:04 WIB
-Last updated: 2026-09-02 05:06:20 WIB
+# face-attendance
+
+
+
+## 📋 Overview
+
+This repository contains **20 files** and is built with the following technologies:
+
+HTML, PHP
+
+## 🚀 Quick Start
+
+```bash
+php -S localhost:8000
+```
+
+## ✨ Features
+
+- 📝 Auto-generated documentation
+
+## 🛠️ Technologies
+
+HTML, PHP
+
+## 📄 License
+
+MIT License
+
+---
+*Last updated: 2026-09-02 05:25:26 WIB*
